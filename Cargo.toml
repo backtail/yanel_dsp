@@ -1,0 +1,40 @@
+[package]
+name = "yanel_dsp"
+version = "0.1.0"
+authors = ["backtail <mail@maxgenson.de>"]
+edition = "2021"
+
+[dependencies]
+embedded-audio-tools = { git = "https://github.com/backtail/embedded-audio-tools.git", rev = "3407288" }
+
+# Optional dependencies used by examples
+audio_module = { git = "https://github.com/backtail/audio_module.git", rev= "4c511ea", optional = true }
+num-derive = { version = "0.2", optional = true }
+num-traits = { version = "0.2", optional = true }
+audio_thread_priority = { version = "0.3", optional = true }
+crossbeam-channel = { version = "0.3", optional = true }
+ringbuf = { version = "0.2.2", optional = true }
+cpal = { version = "0.13.1", optional = true }
+gtk = { version = "0.4", optional = true }
+
+[features]
+default = [ "SR48k" ]
+SR44k1 = []
+SR48k = []
+SR88k2 = []
+SR96k = []
+SR192k = []
+gtk-app = [ 
+        "audio_thread_priority",
+        "crossbeam-channel",
+        "ringbuf",
+        "cpal",
+        "gtk",
+        "num-derive",
+        "num-traits",
+        "audio_module"
+        ]
+
+[[example]]
+name = "freeverb"
+required-features = [ "gtk-app" ]
