@@ -5,7 +5,7 @@ authors = ["backtail <mail@maxgenson.de>"]
 edition = "2021"
 
 [dependencies]
-embedded-audio-tools = { git = "https://github.com/backtail/embedded-audio-tools.git", rev = "3407288" }
+embedded-audio-tools = { git = "https://github.com/backtail/embedded-audio-tools.git", rev = "3f9bbc1247997664c69c70c254e79ef0a9b9f479" }
 
 # Optional dependencies used by examples
 audio_module = { git = "https://github.com/backtail/audio_module.git", rev= "4c511ea", optional = true }
@@ -37,4 +37,8 @@ gtk-app = [
 
 [[example]]
 name = "freeverb"
+required-features = [ "gtk-app" ]
+
+[[example]]
+name = "simple_delay"
 required-features = [ "gtk-app" ]

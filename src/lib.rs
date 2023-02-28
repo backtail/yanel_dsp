@@ -3,8 +3,10 @@
 use embedded_audio_tools as tools;
 
 mod freeverb;
+mod simple_delay;
 
 pub use crate::freeverb::Freeverb;
+pub use crate::simple_delay::SimpleDelay;
 
 #[cfg(feature = "SR44k1")]
 pub const SAMPLING_RATE: usize = 44_100;
