@@ -60,10 +60,10 @@ impl SimpleDelay {
         let delayed_sample = (
             self.delay_lines
                 .0
-                .read_wrapped_at((self.delay_samples as isize).neg()),
+                .read_lerp_wrapped_at(self.delay_samples.neg()),
             self.delay_lines
                 .1
-                .read_wrapped_at((self.delay_samples as isize).neg()),
+                .read_lerp_wrapped_at(self.delay_samples.neg()),
         );
 
         let output = (
