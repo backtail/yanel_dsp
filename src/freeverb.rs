@@ -223,7 +223,7 @@ impl Freeverb {
         self.dry = value;
     }
 
-    pub fn set_all(&mut self, damp: f32, room_size: f32, width: f32, freeze: bool, mix: f32) {
+    pub fn set_all(&mut self, damp: f32, room_size: f32, width: f32, frozen: bool, mix: f32) {
         self.dampening = damp * SCALE_DAMPENING;
         self.room_size = room_size * SCALE_ROOM + OFFSET_ROOM;
         self.width = width;
