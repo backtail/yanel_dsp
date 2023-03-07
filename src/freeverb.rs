@@ -222,6 +222,19 @@ impl Freeverb {
     pub fn set_dry(&mut self, value: f32) {
         self.dry = value;
     }
+
+    pub fn set_all(&mut self, damp: f32, room_size: f32, width: f32, freeze: bool, mix: f32) {
+        self.dampening = damp * SCALE_DAMPENING;
+        self.room_size = room_size * SCALE_ROOM + OFFSET_ROOM;
+        self.width = width;
+        self.frozen = frozen;
+        self.input_gain = if frozen { 0.0 } else { 1.0 };
+        self.dry = 1.0 - mix;
+        self.wet = mix * SCALE_WET;
+
+        self.update_combs();
+        self.update_wet_gains();
+    }
 }
 
 #[cfg(test)]
