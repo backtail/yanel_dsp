@@ -111,7 +111,7 @@ impl SimpleDelay {
     }
 
     pub fn set_crossfade_in_ms(&mut self, fade_time: f32) {
-        self.crossfade_samples = fade_time * 0.001 * SAMPLING_RATE;
+        self.crossfade_samples = (fade_time * 0.001 * SAMPLING_RATE as f32) as usize;
     }
 
     ///////////////////////////////////////////////////////////////////////////////
