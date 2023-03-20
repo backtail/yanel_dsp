@@ -9,7 +9,6 @@ use tools::{
 
 const MIN_DELAY_SAMPLES: usize = 32;
 const MAX_DELAY_SAMPLES: usize = 144_000;
-const CROSSFADE_LENGTH: usize = (0.01 * SAMPLING_RATE as f32) as usize; // 10ms
 
 pub struct SimpleDelay {
     buffer: [f32; MAX_DELAY_SAMPLES],
@@ -24,6 +23,7 @@ pub struct SimpleDelay {
     delay_time_changed: bool,
     last_delay_samples: f32,
     crossfade_counter: usize,
+    crossfade_samples: usize,
 }
 
 impl SimpleDelay {
@@ -46,6 +46,7 @@ impl SimpleDelay {
             delay_time_changed: false,
             last_delay_samples: 0.0,
             crossfade_counter: 0,
+            crossfade_samples: (0.01 * SAMPLING_RATE as f32) as usize, // 10ms
         }
     }
 
@@ -109,6 +110,10 @@ impl SimpleDelay {
         self.wet_gain = wet_gain.clamp(0.0, 1.0);
     }
 
+    pub fn set_crossfade_in_ms(&mut self, fade_time: f32) {
+        self.crossfade_samples = fade_time * 0.001 * SAMPLING_RATE;
+    }
+
     ///////////////////////////////////////////////////////////////////////////////
     /// Private Functions
     ///////////////////////////////////////////////////////////////////////////////
@@ -121,7 +126,7 @@ impl SimpleDelay {
 
         // crossfade between new and old delay time samples
         if self.delay_time_changed {
-            if self.crossfade_counter < CROSSFADE_LENGTH {
+            if self.crossfade_counter < self.crossfade_samples {
                 self.crossfade_counter += 1;
 
                 return crossfade_correlated_unchecked(
@@ -145,7 +150,7 @@ impl SimpleDelay {
 
     #[inline(always)]
     fn get_normalized_bipolar_crossfade(&self) -> f32 {
-        (self.crossfade_counter as f32 / CROSSFADE_LENGTH as f32) * 2.0 - 1.0
+        (self.crossfade_counter as f32 / self.crossfade_samples as f32) * 2.0 - 1.0
     }
 }
 
@@ -171,7 +176,7 @@ mod tests {
         delay.check_buffer_alignment();
 
         // pass by crossfade
-        for _ in 0..CROSSFADE_LENGTH + 1 {
+        for _ in 0..delay.crossfade_samples + 1 {
             delay.tick(0.0);
         }
 
@@ -222,7 +227,7 @@ mod tests {
 
         assert_eq!(delay.get_normalized_bipolar_crossfade(), -1.0);
 
-        for _ in 0..CROSSFADE_LENGTH - 1 {
+        for _ in 0..delay.crossfade_samples - 1 {
             delay.crossfade_counter += 1;
             let crossfade = delay.get_normalized_bipolar_crossfade();
             assert!(crossfade > -1.0 && crossfade < 1.0);
