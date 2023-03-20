@@ -5,7 +5,7 @@ authors = ["backtail <mail@maxgenson.de>"]
 edition = "2021"
 
 [dependencies]
-embedded-audio-tools = { git = "https://github.com/backtail/embedded-audio-tools.git", rev = "090ddb8" }
+embedded-audio-tools = { git = "https://github.com/backtail/embedded-audio-tools.git" }
 
 [features]
 default = [ "SR48k" ]
