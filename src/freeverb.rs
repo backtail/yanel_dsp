@@ -240,6 +240,7 @@ mod tests {
     #[test]
     fn ticking_does_something() {
         let mut freeverb = super::Freeverb::new(super::SAMPLING_RATE);
+        freeverb.check_buffer_alignment();
         assert_eq!(freeverb.tick((1.0, 1.0)), (0.0, 0.0));
         for _ in 0..(1640 * 4) {
             freeverb.tick((0.0, 0.0));
