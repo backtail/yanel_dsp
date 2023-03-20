@@ -112,7 +112,7 @@ impl Freeverb {
     /// Checks if static buffer placement in memory and the pointers of the delaylines align. If not, it aligns it.
     ///
     /// Happens normally only once, after the object has been created.
-    fn check_buffer_alignment(&mut self) {
+    pub fn check_buffer_alignment(&mut self) {
         let buffer_start = core::ptr::addr_of_mut!(self.delay_line_buffer[0]);
         let pointer_start = self.combs[0].0.delay_line.buffer.ptr.0;
 
@@ -146,8 +146,6 @@ impl Freeverb {
         let input_mixed = (input.0 + input.1) * FIXED_GAIN * self.input_gain;
 
         let mut out = (0.0, 0.0);
-
-        self.check_buffer_alignment();
 
         for combs in self.combs.iter_mut() {
             out.0 += combs.0.tick(input_mixed);
