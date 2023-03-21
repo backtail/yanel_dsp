@@ -8,7 +8,15 @@ use crate::tools::{
 use crate::SAMPLING_RATE;
 
 const MIN_DELAY_SAMPLES: usize = 32;
+
+#[cfg(target_os = "linux")]
 const MAX_DELAY_SAMPLES: usize = 144_000;
+
+// Stack size of Windows (1 Mb) is 8 times smaller than Linux (8 Mb)
+// Of course, this also messes with the delay length, but now it
+// (at least) doesn't SegFault anymore
+#[cfg(target_os = "windows")]
+const MAX_DELAY_SAMPLES: usize = 144_000 / 8;
 
 pub struct SimpleDelay {
     buffer: [f32; MAX_DELAY_SAMPLES],
