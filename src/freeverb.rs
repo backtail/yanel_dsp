@@ -1,4 +1,4 @@
-use crate::tools::{mut_mem_slice::from_slice, MutMemSlice};
+use crate::tools::memory_access::{from_slice_mut, null_mut};
 use crate::tools::{AllPass, Comb};
 use crate::SAMPLING_RATE;
 
@@ -82,14 +82,8 @@ impl Freeverb {
         let mut freeverb = Freeverb {
             // reserve memory for delay lines and initiate null pointers
             delay_line_buffer: [0.0_f32; MAX_BUFFER_SIZE],
-            combs: [(
-                Comb::new(MutMemSlice::null()),
-                Comb::new(MutMemSlice::null()),
-            ); 8],
-            allpasses: [(
-                AllPass::new(MutMemSlice::null()),
-                AllPass::new(MutMemSlice::null()),
-            ); 4],
+            combs: [(Comb::new(null_mut()), Comb::new(null_mut())); 8],
+            allpasses: [(AllPass::new(null_mut()), AllPass::new(null_mut())); 4],
             wet_gains: (0.0, 0.0),
             wet: 0.0,
             dry: 0.0,
@@ -113,8 +107,8 @@ impl Freeverb {
     ///
     /// Happens normally only once, after the object has been created.
     pub fn check_buffer_alignment(&mut self) {
-        let buffer_start = core::ptr::addr_of_mut!(self.delay_line_buffer[0]);
-        let pointer_start = self.combs[0].0.delay_line.buffer.ptr.0;
+        let buffer_start = core::ptr::addr_of_mut!(self.delay_line_buffer[..]);
+        let pointer_start = self.combs[0].0.get_ptr_slice_mut();
 
         if buffer_start != pointer_start {
             let mut offset = 0;
@@ -122,20 +116,24 @@ impl Freeverb {
             for (i, _tuning) in TUNINGS.iter().enumerate().step_by(2) {
                 let stage = i / 2;
                 if i < 16 {
-                    self.combs[stage].0.delay_line.buffer =
-                        from_slice(&mut self.delay_line_buffer[offset..offset + TUNINGS[i]]);
+                    self.combs[stage].0.change_buffer(from_slice_mut(
+                        &mut self.delay_line_buffer[offset..offset + TUNINGS[i]],
+                    ));
                     offset += TUNINGS[i];
 
-                    self.combs[stage].1.delay_line.buffer =
-                        from_slice(&mut self.delay_line_buffer[offset..offset + TUNINGS[i + 1]]);
+                    self.combs[stage].1.change_buffer(from_slice_mut(
+                        &mut self.delay_line_buffer[offset..offset + TUNINGS[i + 1]],
+                    ));
                     offset += TUNINGS[i + 1];
                 } else {
-                    self.allpasses[stage - 8].0.delay_line.buffer =
-                        from_slice(&mut self.delay_line_buffer[offset..offset + TUNINGS[i]]);
+                    self.allpasses[stage - 8].0.change_buffer(from_slice_mut(
+                        &mut self.delay_line_buffer[offset..offset + TUNINGS[i]],
+                    ));
                     offset += TUNINGS[i];
 
-                    self.allpasses[stage - 8].1.delay_line.buffer =
-                        from_slice(&mut self.delay_line_buffer[offset..offset + TUNINGS[i + 1]]);
+                    self.allpasses[stage - 8].1.change_buffer(from_slice_mut(
+                        &mut self.delay_line_buffer[offset..offset + TUNINGS[i + 1]],
+                    ));
                     offset += TUNINGS[i + 1];
                 }
             }
