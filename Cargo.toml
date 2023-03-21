@@ -7,6 +7,9 @@ edition = "2021"
 [dependencies]
 embedded-audio-tools = { git = "https://github.com/backtail/embedded-audio-tools.git" }
 
+# for dev
+# embedded-audio-tools = { path = "../embedded-audio-tools" }
+
 [features]
 default = [ "SR48k" ]
 SR44k1 = []

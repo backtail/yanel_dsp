@@ -1,11 +1,11 @@
 use core::ops::Neg;
 
-use crate::SAMPLING_RATE;
-use embedded_audio_tools as tools;
-
-use tools::{
-    mut_mem_slice::from_slice, stereo::crossfade_correlated_unchecked, DelayLine, MutMemSlice,
+use crate::tools::{
+    memory_access::{from_slice_mut, null_mut},
+    stereo::crossfade_correlated_unchecked,
+    DelayLine,
 };
+use crate::SAMPLING_RATE;
 
 const MIN_DELAY_SAMPLES: usize = 32;
 const MAX_DELAY_SAMPLES: usize = 144_000;
@@ -13,7 +13,7 @@ const MAX_DELAY_SAMPLES: usize = 144_000;
 pub struct SimpleDelay {
     buffer: [f32; MAX_DELAY_SAMPLES],
 
-    delay_line: tools::DelayLine,
+    delay_line: crate::tools::DelayLine,
 
     delay_samples: f32,
     feedback: f32,
@@ -36,7 +36,7 @@ impl SimpleDelay {
         SimpleDelay {
             buffer: [0.0_f32; MAX_DELAY_SAMPLES],
 
-            delay_line: (DelayLine::new(MutMemSlice::null())),
+            delay_line: (DelayLine::new(null_mut())),
 
             delay_samples: 0.5 * MAX_DELAY_SAMPLES as f32,
             feedback: 0.5,
@@ -58,11 +58,11 @@ impl SimpleDelay {
     ///
     /// Happens normally only once, after the object has been created.
     pub fn check_buffer_alignment(&mut self) {
-        let buffer_start = core::ptr::addr_of_mut!(self.buffer[0]);
-        let pointer_start = self.delay_line.buffer.ptr.0;
+        let buffer_start = core::ptr::addr_of_mut!(self.buffer[..]);
+        let pointer_start = self.delay_line.get_ptr_slice_mut();
 
         if buffer_start != pointer_start {
-            self.delay_line = DelayLine::new(from_slice(&mut self.buffer[..]));
+            self.delay_line = DelayLine::new(from_slice_mut(&mut self.buffer[..]));
         }
     }
 
@@ -204,15 +204,15 @@ mod tests {
         let mut delay = SimpleDelay::init(SAMPLING_RATE);
 
         // Alignment should fail, since pointers are initiated as null
-        let buffer_start = addr_of_mut!(delay.buffer[0]);
-        let pointer_start = delay.delay_line.buffer.ptr.0;
+        let buffer_start = addr_of_mut!(delay.buffer[..]);
+        let pointer_start = delay.delay_line.get_ptr_slice_mut();
 
         assert_ne!(buffer_start, pointer_start);
 
         delay.check_buffer_alignment();
 
         // Update pointer and check alignment at start
-        let pointer_start = delay.delay_line.buffer.ptr.0;
+        let pointer_start = delay.delay_line.get_ptr_slice_mut();
 
         assert_eq!(
             buffer_start, pointer_start,
