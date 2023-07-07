@@ -1,55 +1,11 @@
+///////////////
+// TODO: Calculate required buffer allocations for common sample rates!
+///////////////
 use crate::tools::memory_access::{from_slice_mut, null_mut};
 use crate::tools::{AllPass, Comb};
-use crate::SAMPLING_RATE;
 
-// ========================
-// Compile Time Calculation
-// ========================
-
-const fn adjust_length(length: usize) -> usize {
-    length * SAMPLING_RATE / 44100
-}
-
+// at 48 kHz
 const STEREO_SPREAD: usize = 23;
-const TUNINGS: [usize; 24] = [
-    adjust_length(1116),                 // COMB_TUNING_L1
-    adjust_length(1116 + STEREO_SPREAD), // COMB_TUNING_R1
-    adjust_length(1188),                 // COMB_TUNING_L2
-    adjust_length(1188 + STEREO_SPREAD), // COMB_TUNING_R2
-    adjust_length(1277),                 // COMB_TUNING_L3
-    adjust_length(1277 + STEREO_SPREAD), // COMB_TUNING_R3
-    adjust_length(1356),                 // COMB_TUNING_L4
-    adjust_length(1356 + STEREO_SPREAD), // COMB_TUNING_R4
-    adjust_length(1422),                 // COMB_TUNING_L5
-    adjust_length(1422 + STEREO_SPREAD), // COMB_TUNING_R5
-    adjust_length(1491),                 // COMB_TUNING_L6
-    adjust_length(1491 + STEREO_SPREAD), // COMB_TUNING_R6
-    adjust_length(1557),                 // COMB_TUNING_L7
-    adjust_length(1557 + STEREO_SPREAD), // COMB_TUNING_R7
-    adjust_length(1617),                 // COMB_TUNING_L8
-    adjust_length(1617 + STEREO_SPREAD), // COMB_TUNING_R8
-    adjust_length(556),                  // ALLPASS_TUNING_L1
-    adjust_length(556 + STEREO_SPREAD),  // ALLPASS_TUNING_R1
-    adjust_length(441),                  // ALLPASS_TUNING_L2
-    adjust_length(441 + STEREO_SPREAD),  // ALLPASS_TUNING_R2
-    adjust_length(341),                  // ALLPASS_TUNING_L3
-    adjust_length(341 + STEREO_SPREAD),  // ALLPASS_TUNING_R3
-    adjust_length(225),                  // ALLPASS_TUNING_L4
-    adjust_length(225 + STEREO_SPREAD),  // ALLPASS_TUNING_R4
-];
-
-const MAX_BUFFER_SIZE: usize = {
-    let mut sum = 0;
-    let mut i = 0;
-
-    while i != 24 {
-        sum += TUNINGS[i];
-        i += 1;
-    }
-
-    sum
-};
-
 const FIXED_GAIN: f32 = 0.015;
 
 const SCALE_WET: f32 = 3.0;
@@ -59,7 +15,6 @@ const SCALE_ROOM: f32 = 0.28;
 const OFFSET_ROOM: f32 = 0.7;
 
 pub struct Freeverb {
-    delay_line_buffer: [f32; MAX_BUFFER_SIZE],
     combs: [(Comb, Comb); 8],
     allpasses: [(AllPass, AllPass); 4],
     wet_gains: (f32, f32),
@@ -73,15 +28,49 @@ pub struct Freeverb {
 }
 
 impl Freeverb {
-    pub fn new(sr: usize) -> Self {
-        assert_eq!(
-            sr, SAMPLING_RATE,
-            "This reverb owns memory on which it the delay lines sit. To safe on memory usage, its size is calculated at compile time!"
+    pub fn new(sr: usize, buffer: &mut [f32]) -> Self {
+        // freeverb specific tuning of filters
+        let mut tunings = [
+            1116,                 // COMB_TUNING_L1
+            1116 + STEREO_SPREAD, // COMB_TUNING_R1
+            1188,                 // COMB_TUNING_L2
+            1188 + STEREO_SPREAD, // COMB_TUNING_R2
+            1277,                 // COMB_TUNING_L3
+            1277 + STEREO_SPREAD, // COMB_TUNING_R3
+            1356,                 // COMB_TUNING_L4
+            1356 + STEREO_SPREAD, // COMB_TUNING_R4
+            1422,                 // COMB_TUNING_L5
+            1422 + STEREO_SPREAD, // COMB_TUNING_R5
+            1491,                 // COMB_TUNING_L6
+            1491 + STEREO_SPREAD, // COMB_TUNING_R6
+            1557,                 // COMB_TUNING_L7
+            1557 + STEREO_SPREAD, // COMB_TUNING_R7
+            1617,                 // COMB_TUNING_L8
+            1617 + STEREO_SPREAD, // COMB_TUNING_R8
+            556,                  // ALLPASS_TUNING_L1
+            556 + STEREO_SPREAD,  // ALLPASS_TUNING_R1
+            441,                  // ALLPASS_TUNING_L2
+            441 + STEREO_SPREAD,  // ALLPASS_TUNING_R2
+            341,                  // ALLPASS_TUNING_L3
+            341 + STEREO_SPREAD,  // ALLPASS_TUNING_R3
+            225,                  // ALLPASS_TUNING_L4
+            225 + STEREO_SPREAD,  // ALLPASS_TUNING_R4
+        ];
+
+        // adjust to sample rate
+        tunings
+            .iter_mut()
+            .for_each(|tuning| adjust_length(tuning, sr));
+
+        // only continue, if at least required memory allocation is passed
+        assert!(
+            buffer.len() >= tunings.iter().sum(),
+            "Plaese provide enough mutable memory!"
         );
 
+        // create the freeverb object
         let mut freeverb = Freeverb {
             // reserve memory for delay lines and initiate null pointers
-            delay_line_buffer: [0.0_f32; MAX_BUFFER_SIZE],
             combs: [(Comb::new(null_mut()), Comb::new(null_mut())); 8],
             allpasses: [(AllPass::new(null_mut()), AllPass::new(null_mut())); 4],
             wet_gains: (0.0, 0.0),
@@ -94,6 +83,8 @@ impl Freeverb {
             frozen: false,
         };
 
+        // configure
+        freeverb.align_buffers(buffer, tunings);
         freeverb.set_wet(1.0);
         freeverb.set_width(0.5);
         freeverb.set_dampening(0.5);
@@ -101,43 +92,6 @@ impl Freeverb {
         freeverb.set_frozen(false);
 
         freeverb
-    }
-
-    /// Checks if static buffer placement in memory and the pointers of the delaylines align. If not, it aligns it.
-    ///
-    /// Happens normally only once, after the object has been created.
-    pub fn check_buffer_alignment(&mut self) {
-        let buffer_start = core::ptr::addr_of_mut!(self.delay_line_buffer[..]);
-        let pointer_start = self.combs[0].0.get_ptr_slice_mut();
-
-        if buffer_start != pointer_start {
-            let mut offset = 0;
-            // Give delay lines the approriate memory strips on static buffer
-            for (i, _tuning) in TUNINGS.iter().enumerate().step_by(2) {
-                let stage = i / 2;
-                if i < 16 {
-                    self.combs[stage].0.change_buffer(from_slice_mut(
-                        &mut self.delay_line_buffer[offset..offset + TUNINGS[i]],
-                    ));
-                    offset += TUNINGS[i];
-
-                    self.combs[stage].1.change_buffer(from_slice_mut(
-                        &mut self.delay_line_buffer[offset..offset + TUNINGS[i + 1]],
-                    ));
-                    offset += TUNINGS[i + 1];
-                } else {
-                    self.allpasses[stage - 8].0.change_buffer(from_slice_mut(
-                        &mut self.delay_line_buffer[offset..offset + TUNINGS[i]],
-                    ));
-                    offset += TUNINGS[i];
-
-                    self.allpasses[stage - 8].1.change_buffer(from_slice_mut(
-                        &mut self.delay_line_buffer[offset..offset + TUNINGS[i + 1]],
-                    ));
-                    offset += TUNINGS[i + 1];
-                }
-            }
-        }
     }
 
     pub fn tick(&mut self, input: (f32, f32)) -> (f32, f32) {
@@ -159,6 +113,35 @@ impl Freeverb {
             out.0 * self.wet_gains.0 + out.1 * self.wet_gains.1 + input.0 * self.dry,
             out.1 * self.wet_gains.0 + out.0 * self.wet_gains.1 + input.1 * self.dry,
         )
+    }
+
+    fn align_buffers(&mut self, buffer: &mut [f32], tunings: [usize; 24]) {
+        let mut offset = 0;
+        // Give delay lines the approriate memory strips on buffer
+        for (i, _tuning) in tunings.iter().enumerate().step_by(2) {
+            let stage = i / 2;
+            if i < 16 {
+                self.combs[stage]
+                    .0
+                    .change_buffer(from_slice_mut(&mut buffer[offset..offset + tunings[i]]));
+                offset += tunings[i];
+
+                self.combs[stage]
+                    .1
+                    .change_buffer(from_slice_mut(&mut buffer[offset..offset + tunings[i + 1]]));
+                offset += tunings[i + 1];
+            } else {
+                self.allpasses[stage - 8]
+                    .0
+                    .change_buffer(from_slice_mut(&mut buffer[offset..offset + tunings[i]]));
+                offset += tunings[i];
+
+                self.allpasses[stage - 8]
+                    .1
+                    .change_buffer(from_slice_mut(&mut buffer[offset..offset + tunings[i + 1]]));
+                offset += tunings[i + 1];
+            }
+        }
     }
 
     pub fn set_dampening(&mut self, value: f32) {
@@ -233,12 +216,16 @@ impl Freeverb {
     }
 }
 
+fn adjust_length(length: &mut usize, sr: usize) {
+    *length = *length * sr / 44100
+}
+
 #[cfg(test)]
 mod tests {
     #[test]
     fn ticking_does_something() {
-        let mut freeverb = super::Freeverb::new(super::SAMPLING_RATE);
-        freeverb.check_buffer_alignment();
+        let mut buffer = [0_f32; 48000];
+        let mut freeverb = super::Freeverb::new(48000, buffer.as_mut_slice());
         assert_eq!(freeverb.tick((1.0, 1.0)), (0.0, 0.0));
         for _ in 0..(1640 * 4) {
             freeverb.tick((0.0, 0.0));

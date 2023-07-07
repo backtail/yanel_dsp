@@ -9,11 +9,3 @@ embedded-audio-tools = { git = "https://github.com/backtail/embedded-audio-tools
 
 # for dev
 # embedded-audio-tools = { path = "../embedded-audio-tools" }
-
-[features]
-default = [ "SR48k" ]
-SR44k1 = []
-SR48k = []
-SR88k2 = []
-SR96k = []
-SR192k = []
