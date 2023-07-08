@@ -1,10 +1,12 @@
 use core::ops::Neg;
 
 use crate::tools::{
-    memory_access::from_slice_mut, stereo::crossfade_correlated_unchecked, DelayLine,
+    memory_access::{from_slice_mut, null_mut},
+    stereo::crossfade_correlated_unchecked,
+    DelayLine,
 };
 
-const MIN_DELAY_SAMPLES: usize = 32;
+const MIN_DELAY_SAMPLES: f32 = 32.0;
 
 pub struct SimpleDelay {
     delay_line: crate::tools::DelayLine,
@@ -18,17 +20,14 @@ pub struct SimpleDelay {
     last_delay_samples: f32,
     crossfade_counter: usize,
     crossfade_samples: usize,
-
-    sr: f32,
 }
 
 impl SimpleDelay {
-    /// Initiate the delay by providing sample rate `sr` and mutable memory `buffer` either statically or dynamically allocated.
-    pub fn init(sr: f32, buffer: &mut [f32]) -> SimpleDelay {
+    pub fn init() -> SimpleDelay {
         SimpleDelay {
-            delay_line: (DelayLine::new(from_slice_mut(buffer))),
+            delay_line: (DelayLine::new(null_mut())),
 
-            delay_samples: 0.5 * buffer.len() as f32,
+            delay_samples: MIN_DELAY_SAMPLES,
             feedback: 0.5,
             dry_gain: 0.0,
             wet_gain: 1.0,
@@ -36,9 +35,7 @@ impl SimpleDelay {
             delay_time_changed: false,
             last_delay_samples: 0.0,
             crossfade_counter: 0,
-            crossfade_samples: (0.01 * sr) as usize,
-
-            sr,
+            crossfade_samples: 480,
         }
     }
 
@@ -54,21 +51,15 @@ impl SimpleDelay {
         self.dry_gain * input + self.wet_gain * output
     }
 
-    pub fn set_delay_in_secs(&mut self, delay: f32) {
-        let new_delay =
-            (delay * self.sr as f32).clamp(MIN_DELAY_SAMPLES as f32, self.delay_line.len() as f32);
-
-        if new_delay != self.delay_samples {
-            self.last_delay_samples = self.delay_samples;
-            self.delay_time_changed = true;
-        }
-
-        self.delay_samples = new_delay;
+    pub fn set_buffer(&mut self, buffer: &mut [f32]) {
+        self.delay_line.change_buffer(from_slice_mut(buffer));
     }
 
-    pub fn set_delay_in_ms(&mut self, delay: f32) {
-        let new_delay = ((delay * self.sr as f32) / 1000.0)
-            .clamp(MIN_DELAY_SAMPLES as f32, self.delay_line.len() as f32);
+    /// Set the delay length in samples
+    ///
+    /// Sample rate depending calculations should be performed earlier!
+    pub fn set_delay(&mut self, samples: f32) {
+        let new_delay = samples.clamp(MIN_DELAY_SAMPLES, self.delay_line.len() as f32);
 
         if new_delay != self.delay_samples {
             self.last_delay_samples = self.delay_samples;
@@ -90,8 +81,11 @@ impl SimpleDelay {
         self.wet_gain = wet_gain.clamp(0.0, 1.0);
     }
 
-    pub fn set_crossfade_in_ms(&mut self, fade_time: f32) {
-        self.crossfade_samples = (fade_time * 0.01 * self.sr) as usize;
+    /// Sets the crossfade time
+    ///
+    /// Sample rate depending calculations should be performed earlier!
+    pub fn set_crossfade(&mut self, fade_samples: usize) {
+        self.crossfade_samples = fade_samples;
     }
 
     ///////////////////////////////////////////////////////////////////////////////
@@ -142,20 +136,19 @@ impl SimpleDelay {
 mod tests {
     use super::*;
 
-    const SAMPLING_RATE: f32 = 48000.0;
-
     #[test]
     fn ticking_delay() {
-        let feedback_gain = 0.5;
-        let delay_time = 1.0; //ms
+        const SAMPLING_RATE: f32 = 48000.0;
         const DELAY_SAMPLES: usize = (1 * SAMPLING_RATE as usize) / 1000;
         let mut buffer = [0_f32; DELAY_SAMPLES];
+        let feedback_gain = 0.5;
 
-        let mut delay = SimpleDelay::init(SAMPLING_RATE, &mut buffer.as_mut_slice());
+        let mut delay = SimpleDelay::init();
+        delay.set_buffer(&mut buffer.as_mut_slice());
         delay.set_dry(1.0);
         delay.set_wet(1.0);
         delay.set_feedback(feedback_gain);
-        delay.set_delay_in_ms(delay_time);
+        delay.set_delay(DELAY_SAMPLES as f32);
 
         // pass by crossfade
         for _ in 0..delay.crossfade_samples + 1 {
@@ -181,8 +174,7 @@ mod tests {
 
     #[test]
     fn crossfade_bounds() {
-        let mut dummy_buffer = [0_f32; 0];
-        let mut delay = SimpleDelay::init(SAMPLING_RATE, &mut dummy_buffer[..]);
+        let mut delay = SimpleDelay::init();
         delay.crossfade_counter = 0;
 
         assert_eq!(delay.get_normalized_bipolar_crossfade(), -1.0);

@@ -9,3 +9,5 @@ mod simple_delay;
 pub use crate::freeverb::Freeverb;
 pub use crate::multi_filter::MultiFilter;
 pub use crate::simple_delay::SimpleDelay;
+
+pub use tools::float::DSPUtility;
