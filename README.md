@@ -26,3 +26,26 @@ There are a few implementations as VST3 plugins with the [nih-plug](https://gith
 - Multi Filter (no GUI)
 - Freeverb
 - Simple Delay
+
+# Cross Platform
+
+Create a static library and it's header file to include in any embedded C project! Can be linked per function!
+
+## Build & Compile
+
+Make sure to install the right toolchain.
+For example, on a Cortex M4 with FPU:
+
+```bash
+cargo build --target=thumbv7em-none-eabihf --features=static --release
+```
+
+## Generate Header
+
+Make sure to install `cbindgen`.
+
+```bash
+cbindgen --config dsp_buddy_cbindgen.toml --crate yanel_dsp --output yanel_dsp.h
+```
+
+Include this file in a any project and don't forget to link against the `libyanel_dsp.a` file!

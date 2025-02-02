@@ -8,6 +8,7 @@ use crate::tools::{
 
 const MIN_DELAY_SAMPLES: f32 = 32.0;
 
+#[repr(C)]
 pub struct SimpleDelay {
     delay_line: crate::tools::DelayLine,
 
