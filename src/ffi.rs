@@ -26,7 +26,7 @@ unsafe extern "C" fn simple_delay_tick(ptr: *mut SimpleDelay, sample: f32) -> f3
 
 /// Sample rate depending calculations should be performed earlier!
 #[no_mangle]
-unsafe extern "C" fn simple_delay_set_delay_length(ptr: *mut SimpleDelay, len_in_samples: f32) {
+unsafe extern "C" fn simple_delay_set_length(ptr: *mut SimpleDelay, len_in_samples: f32) {
     ptr.as_mut().unwrap_unchecked().set_delay(len_in_samples);
 }
 
