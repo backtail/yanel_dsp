@@ -68,6 +68,21 @@ struct SimpleDelay simple_delay_init(void);
 void simple_delay_set_buffer(struct SimpleDelay *ptr, float *buffer, size_t length);
 
 /*
+ Sample rate depending calculations should be performed earlier!
+ */
+void simple_delay_set_delay_length(struct SimpleDelay *ptr, float len_in_samples);
+
+/*
+ Feedback can reach max. 100%
+ */
+void simple_delay_set_feedback(struct SimpleDelay *ptr, float feedback);
+
+/*
+ Dry/Wet mixing
+ */
+void simple_delay_set_mix(struct SimpleDelay *ptr, float mix);
+
+/*
  Returns next sample
  */
 float simple_delay_tick(struct SimpleDelay *ptr, float sample);
