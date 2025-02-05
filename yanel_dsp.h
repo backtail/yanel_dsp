@@ -10,30 +10,11 @@
 
 /*
  Raw mutable pointer that implements the `Send` trait since it's only acting on stack memory
-
- Should always point at the beginning of your audio buffer in use
  */
 typedef float *Mutable;
 
 /*
  Struct
- Raw slice pointer that implements the `Send` trait since it **only** works **safely** on **statically allocated memory**.
-
-## Example
-
-``` use embedded_audio_tools::memory_access::*;
-
-// Thread-safe non-mutable slice let buffer = [0.0_f32; 24]; let non_mut_slice = from_slice(&buffer[..]);
-
-// Thread-safe mutable slice let mut buffer = [0.0_f32; 24]; let mut mut_slice = from_slice_mut(&mut buffer[..]);
-
-// Null pointer and length of 0 let mut ptr_buffer = null_mut();
-
-// Change associated buffer in runtime unsafe {     ptr_buffer.change_mut_slice_unchecked(buffer.as_mut_ptr(), buffer.len()); }
-
-assert_eq!(ptr_buffer.as_slice(), mut_slice.as_slice()); ```
-
-
  */
 typedef struct MemorySlice_Mutable {
     Mutable ptr;
