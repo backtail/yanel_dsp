@@ -4,14 +4,22 @@
 use crate::tools::memory_access::{from_slice_mut, null_mut};
 use crate::tools::{AllPass, Comb};
 
-// at 48 kHz
-const STEREO_SPREAD: usize = 23;
+/// cbindgen:ignore
+const STEREO_SPREAD: usize = 23; // at 48 kHz
+
+/// cbindgen:ignore
 const FIXED_GAIN: f32 = 0.015;
 
+/// cbindgen:ignore
 const SCALE_WET: f32 = 3.0;
+
+/// cbindgen:ignore
 const SCALE_DAMPENING: f32 = 0.4;
 
+/// cbindgen:ignore
 const SCALE_ROOM: f32 = 0.28;
+
+/// cbindgen:ignore
 const OFFSET_ROOM: f32 = 0.7;
 
 pub struct Freeverb {

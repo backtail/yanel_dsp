@@ -6,6 +6,7 @@ use crate::tools::{
     DelayLine,
 };
 
+/// cbindgen:ignore
 const MIN_DELAY_SAMPLES: f32 = 4.0;
 
 #[repr(C)]
