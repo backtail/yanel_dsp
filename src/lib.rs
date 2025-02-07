@@ -2,8 +2,6 @@
 
 use embedded_audio_tools as tools;
 
-mod ffi;
-
 mod freeverb;
 mod multi_filter;
 mod simple_delay;
