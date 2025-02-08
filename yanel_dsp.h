@@ -8,6 +8,15 @@
 #include <stddef.h>
 
 
+typedef enum ButterworthType {
+    Lowpass = 0,
+    Highpass = 1,
+    Allpass = 2,
+    Notch = 3,
+    Bell = 4,
+    LowShelf = 5,
+} ButterworthType;
+
 /*
  Raw mutable pointer that implements the `Send` trait since it's only acting on stack memory
  */
@@ -26,6 +35,65 @@ typedef struct DelayLine {
     size_t index;
 } DelayLine;
 
+typedef struct Comb {
+    struct DelayLine delay_line;
+    float feedback;
+    float filter_state;
+    float dampening;
+    float dampening_inverse;
+} Comb;
+
+typedef struct AllPass {
+    struct DelayLine delay_line;
+} AllPass;
+
+typedef struct FreeverbParams {
+    float width;
+    float dampening;
+    float room_size;
+    bool frozen;
+    float mix;
+} FreeverbParams;
+
+typedef struct Freeverb {
+    struct Comb combs_l[8];
+    struct Comb combs_r[8];
+    struct AllPass allpasses_l[4];
+    struct AllPass allpasses_r[4];
+    struct FreeverbParams params;
+    float wet_gain_l;
+    float wet_gain_r;
+    float input_gain;
+    float dry;
+    float wet;
+} Freeverb;
+
+typedef struct BiquadCoeffs_Butterworth {
+    float b0;
+    float b1;
+    float b2;
+    float a1;
+    float a2;
+} BiquadCoeffs_Butterworth;
+
+/*
+ Little suite of filters in a `Biquad` topology.
+ */
+typedef struct Biquad_Butterworth {
+    float z1;
+    float z2;
+    struct BiquadCoeffs_Butterworth coeffs;
+} Biquad_Butterworth;
+
+typedef struct MultiFilter {
+    struct Biquad_Butterworth biquad;
+    enum ButterworthType filter;
+    float sr;
+    float fc;
+    float q;
+    float gain;
+} MultiFilter;
+
 typedef struct SimpleDelay {
     struct DelayLine delay_line;
     float delay_samples;
@@ -37,6 +105,50 @@ typedef struct SimpleDelay {
     size_t crossfade_counter;
     size_t crossfade_samples;
 } SimpleDelay;
+
+float f32_millis_to_samples(float val, float sr);
+
+float f32_samples_to_millis(float val, float sr);
+
+float f32_samples_to_seconds(float val, float sr);
+
+float f32_seconds_to_samples(float val, float sr);
+
+/*
+ Initializes `Freeverb` struct. `buffer` needs to be `length >= 25450` for `sr = 48000`. Otherwise will panic!
+ */
+struct Freeverb freeverb_init(float sr,
+                              float *buffer,
+                              size_t length);
+
+/*
+ Sample rate depending calculations should be performed earlier!
+ */
+void freeverb_set_all_params(struct Freeverb *ptr, struct FreeverbParams *params);
+
+/*
+ Returns next stereo samples. Raw pointer `stereo_samples` assumes to have exactly two elements!
+ */
+void freeverb_tick(struct Freeverb *ptr, float *stereo_samples);
+
+/*
+ Initializes `MultiFilter` struct.
+ */
+struct MultiFilter multifilter_init(float sr);
+
+/*
+ Sample rate depending calculations should be performed earlier!
+ */
+void multifilter_set_all_params(struct MultiFilter *ptr,
+                                enum ButterworthType filter,
+                                float freq,
+                                float q,
+                                float gain);
+
+/*
+ Returns next stereo samples. Raw pointer `stereo_samples` assumes to have exactly two elements!
+ */
+float multifilter_tick(struct MultiFilter *ptr, float sample);
 
 /*
  Initializes `SimpleDelay` struct

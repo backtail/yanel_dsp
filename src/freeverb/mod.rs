@@ -1,3 +1,5 @@
+mod ffi;
+
 ///////////////
 // TODO: Calculate required buffer allocations for common sample rates!
 ///////////////
@@ -22,17 +24,29 @@ const SCALE_ROOM: f32 = 0.28;
 /// cbindgen:ignore
 const OFFSET_ROOM: f32 = 0.7;
 
-pub struct Freeverb {
-    combs: [(Comb, Comb); 8],
-    allpasses: [(AllPass, AllPass); 4],
-    wet_gains: (f32, f32),
-    wet: f32,
+#[repr(C)]
+pub struct FreeverbParams {
     width: f32,
-    dry: f32,
-    input_gain: f32,
     dampening: f32,
     room_size: f32,
     frozen: bool,
+    mix: f32,
+}
+
+#[repr(C)]
+pub struct Freeverb {
+    combs_l: [Comb; 8],
+    combs_r: [Comb; 8],
+    allpasses_l: [AllPass; 4],
+    allpasses_r: [AllPass; 4],
+
+    params: FreeverbParams,
+
+    wet_gain_l: f32,
+    wet_gain_r: f32,
+    input_gain: f32,
+    dry: f32,
+    wet: f32,
 }
 
 impl Freeverb {
@@ -79,16 +93,22 @@ impl Freeverb {
         // create the freeverb object
         let mut freeverb = Freeverb {
             // reserve memory for delay lines and initiate null pointers
-            combs: [(Comb::new(null_mut()), Comb::new(null_mut())); 8],
-            allpasses: [(AllPass::new(null_mut()), AllPass::new(null_mut())); 4],
-            wet_gains: (0.0, 0.0),
+            combs_l: [Comb::new(null_mut()); 8],
+            combs_r: [Comb::new(null_mut()); 8],
+            allpasses_l: [AllPass::new(null_mut()); 4],
+            allpasses_r: [AllPass::new(null_mut()); 4],
+            wet_gain_l: 0.0,
+            wet_gain_r: 0.0,
+            input_gain: 0.0,
             wet: 0.0,
             dry: 0.0,
-            input_gain: 0.0,
-            width: 0.0,
-            dampening: 0.0,
-            room_size: 0.0,
-            frozen: false,
+            params: FreeverbParams {
+                width: 0.0,
+                dampening: 0.0,
+                room_size: 0.0,
+                frozen: false,
+                mix: 0.0,
+            },
         };
 
         // configure
@@ -107,45 +127,41 @@ impl Freeverb {
 
         let mut out = (0.0, 0.0);
 
-        for combs in self.combs.iter_mut() {
+        for combs in core::iter::zip(self.combs_l.iter_mut(), self.combs_r.iter_mut()) {
             out.0 += combs.0.tick(input_mixed);
             out.1 += combs.1.tick(input_mixed);
         }
 
-        for allpasses in self.allpasses.iter_mut() {
+        for allpasses in core::iter::zip(self.allpasses_l.iter_mut(), self.allpasses_r.iter_mut()) {
             out.0 = allpasses.0.tick(out.0);
             out.1 = allpasses.1.tick(out.1);
         }
 
         (
-            out.0 * self.wet_gains.0 + out.1 * self.wet_gains.1 + input.0 * self.dry,
-            out.1 * self.wet_gains.0 + out.0 * self.wet_gains.1 + input.1 * self.dry,
+            out.0 * self.wet_gain_l + out.1 * self.wet_gain_r + input.0 * self.dry,
+            out.1 * self.wet_gain_l + out.0 * self.wet_gain_r + input.1 * self.dry,
         )
     }
 
     fn align_buffers(&mut self, buffer: &mut [f32], tunings: [usize; 24]) {
         let mut offset = 0;
         // Give delay lines the approriate memory strips on buffer
-        for (i, _tuning) in tunings.iter().enumerate().step_by(2) {
+        for (i, _) in tunings.iter().enumerate().step_by(2) {
             let stage = i / 2;
             if i < 16 {
-                self.combs[stage]
-                    .0
+                self.combs_l[stage]
                     .change_buffer(from_slice_mut(&mut buffer[offset..offset + tunings[i]]));
                 offset += tunings[i];
 
-                self.combs[stage]
-                    .1
+                self.combs_r[stage]
                     .change_buffer(from_slice_mut(&mut buffer[offset..offset + tunings[i + 1]]));
                 offset += tunings[i + 1];
             } else {
-                self.allpasses[stage - 8]
-                    .0
+                self.allpasses_l[stage - 8]
                     .change_buffer(from_slice_mut(&mut buffer[offset..offset + tunings[i]]));
                 offset += tunings[i];
 
-                self.allpasses[stage - 8]
-                    .1
+                self.allpasses_r[stage - 8]
                     .change_buffer(from_slice_mut(&mut buffer[offset..offset + tunings[i + 1]]));
                 offset += tunings[i + 1];
             }
@@ -153,12 +169,12 @@ impl Freeverb {
     }
 
     pub fn set_dampening(&mut self, value: f32) {
-        self.dampening = value * SCALE_DAMPENING;
+        self.params.dampening = value * SCALE_DAMPENING;
         self.update_combs();
     }
 
     pub fn set_freeze(&mut self, frozen: bool) {
-        self.frozen = frozen;
+        self.params.frozen = frozen;
         self.update_combs();
     }
 
@@ -168,36 +184,34 @@ impl Freeverb {
     }
 
     pub fn set_width(&mut self, value: f32) {
-        self.width = value;
+        self.params.width = value;
         self.update_wet_gains();
     }
 
     fn update_wet_gains(&mut self) {
-        self.wet_gains = (
-            self.wet * (self.width / 2.0 + 0.5),
-            self.wet * ((1.0 - self.width) / 2.0),
-        )
+        self.wet_gain_l = self.wet * (self.params.width / 2.0 + 0.5);
+        self.wet_gain_l = self.wet * ((1.0 - self.params.width) / 2.0);
     }
 
     fn set_frozen(&mut self, frozen: bool) {
-        self.frozen = frozen;
+        self.params.frozen = frozen;
         self.input_gain = if frozen { 0.0 } else { 1.0 };
         self.update_combs();
     }
 
     pub fn set_room_size(&mut self, value: f32) {
-        self.room_size = value * SCALE_ROOM + OFFSET_ROOM;
+        self.params.room_size = value * SCALE_ROOM + OFFSET_ROOM;
         self.update_combs();
     }
 
     fn update_combs(&mut self) {
-        let (feedback, dampening) = if self.frozen {
+        let (feedback, dampening) = if self.params.frozen {
             (1.0, 0.0)
         } else {
-            (self.room_size, self.dampening)
+            (self.params.room_size, self.params.dampening)
         };
 
-        for combs in self.combs.iter_mut() {
+        for combs in core::iter::zip(self.combs_l.iter_mut(), self.combs_r.iter_mut()) {
             combs.0.set_feedback(feedback);
             combs.1.set_feedback(feedback);
 
@@ -210,14 +224,16 @@ impl Freeverb {
         self.dry = value;
     }
 
-    pub fn set_all(&mut self, damp: f32, room_size: f32, width: f32, frozen: bool, mix: f32) {
-        self.dampening = damp * SCALE_DAMPENING;
-        self.room_size = room_size * SCALE_ROOM + OFFSET_ROOM;
-        self.width = width;
-        self.frozen = frozen;
-        self.input_gain = if frozen { 0.0 } else { 1.0 };
-        self.dry = 1.0 - mix;
-        self.wet = mix * SCALE_WET;
+    pub fn set_all(&mut self, new: &FreeverbParams) {
+        self.params.dampening = new.dampening * SCALE_DAMPENING;
+        self.params.room_size = new.room_size * SCALE_ROOM + OFFSET_ROOM;
+        self.params.width = new.width;
+        self.params.frozen = new.frozen;
+        self.params.mix = new.mix;
+
+        self.input_gain = if new.frozen { 0.0 } else { 1.0 };
+        self.dry = 1.0 - new.mix;
+        self.wet = new.mix * SCALE_WET;
 
         self.update_combs();
         self.update_wet_gains();

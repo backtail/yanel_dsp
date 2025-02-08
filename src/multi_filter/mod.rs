@@ -1,8 +1,13 @@
-use embedded_audio_tools::filter::{Biquad, BiquadCoeffs, Butterworth};
+mod ffi;
 
+use embedded_audio_tools::filter::{
+    butterworth::ButterworthType, Biquad, BiquadCoeffs, Butterworth,
+};
+
+#[repr(C)]
 pub struct MultiFilter {
     biquad: Biquad<Butterworth>,
-    filter: u8,
+    filter: ButterworthType,
     sr: f32,
     fc: f32,
     q: f32,
@@ -13,7 +18,7 @@ impl MultiFilter {
     pub fn init(sr: usize) -> MultiFilter {
         MultiFilter {
             biquad: Biquad::new(BiquadCoeffs::new()),
-            filter: 0,
+            filter: ButterworthType::Lowpass,
             sr: sr as f32,
             fc: 100.0,
             q: 1.0,
@@ -25,7 +30,7 @@ impl MultiFilter {
         self.biquad.process(input)
     }
 
-    pub fn set_filter(&mut self, filter: u8) {
+    pub fn set_filter(&mut self, filter: ButterworthType) {
         self.filter = filter;
         self.update_coeffs();
     }
@@ -45,7 +50,7 @@ impl MultiFilter {
         self.update_coeffs();
     }
 
-    pub fn set_all(&mut self, filter: u8, freq: f32, q: f32, gain: f32) {
+    pub fn set_all(&mut self, filter: ButterworthType, freq: f32, q: f32, gain: f32) {
         self.filter = filter;
         self.fc = freq;
         self.q = q;
@@ -55,16 +60,15 @@ impl MultiFilter {
 
     fn update_coeffs(&mut self) {
         match self.filter {
-            0 => self.biquad.coeffs.lowpass(self.fc, self.q, self.sr),
-            1 => self.biquad.coeffs.highpass(self.fc, self.q, self.sr),
-            2 => self.biquad.coeffs.allpass(self.fc, self.q, self.sr),
-            3 => self.biquad.coeffs.notch(self.fc, self.q, self.sr),
-            4 => self.biquad.coeffs.bell(self.fc, self.q, self.gain, self.sr),
-            5 => self
+            ButterworthType::Lowpass => self.biquad.coeffs.lowpass(self.fc, self.q, self.sr),
+            ButterworthType::Highpass => self.biquad.coeffs.highpass(self.fc, self.q, self.sr),
+            ButterworthType::Allpass => self.biquad.coeffs.allpass(self.fc, self.q, self.sr),
+            ButterworthType::Notch => self.biquad.coeffs.notch(self.fc, self.q, self.sr),
+            ButterworthType::Bell => self.biquad.coeffs.bell(self.fc, self.q, self.gain, self.sr),
+            ButterworthType::LowShelf => self
                 .biquad
                 .coeffs
                 .low_shelf(self.fc, self.q, self.gain, self.sr),
-            _ => {}
         }
     }
 }
