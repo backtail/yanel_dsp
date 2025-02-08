@@ -9,13 +9,34 @@
 
 
 typedef enum ButterworthType {
-    Lowpass = 0,
-    Highpass = 1,
-    Allpass = 2,
-    Notch = 3,
-    Bell = 4,
-    LowShelf = 5,
+    ButterworthType_Lowpass = 0,
+    ButterworthType_Highpass = 1,
+    ButterworthType_Allpass = 2,
+    ButterworthType_Notch = 3,
+    ButterworthType_Bell = 4,
+    ButterworthType_LowShelf = 5,
 } ButterworthType;
+
+typedef enum EnvelopeState {
+    EnvelopeState_Idle,
+    EnvelopeState_Attack,
+    EnvelopeState_Decay,
+    EnvelopeState_Release,
+    EnvelopeState_Sustain,
+} EnvelopeState;
+
+typedef enum KickState {
+    KickState_Idle,
+    KickState_Triggered,
+    KickState_Retriggered,
+} KickState;
+
+typedef enum Waveform {
+    Waveform_Sine = 0,
+    Waveform_Rectangle = 1,
+    Waveform_Sawtooth = 2,
+    Waveform_Triangle = 3,
+} Waveform;
 
 /*
  Raw mutable pointer that implements the `Send` trait since it's only acting on stack memory
@@ -106,6 +127,44 @@ typedef struct SimpleDelay {
     size_t crossfade_samples;
 } SimpleDelay;
 
+typedef struct AudioRateADSR {
+    float attack;
+    float decay;
+    float sustain;
+    float release;
+    float slope;
+    float t;
+    enum EnvelopeState state;
+    float envelope_value;
+    float release_val;
+    float sr;
+} AudioRateADSR;
+
+typedef struct SoftPhaseAccumulator {
+    uint32_t counter;
+    float freq;
+    uint32_t shift;
+    float min_step;
+} SoftPhaseAccumulator;
+
+typedef struct FunctionalOscillator_SoftPhaseAccumulator {
+    struct SoftPhaseAccumulator acc;
+    enum Waveform wave;
+} FunctionalOscillator_SoftPhaseAccumulator;
+
+typedef struct SynthKick {
+    struct AudioRateADSR pitch_env;
+    struct AudioRateADSR volume_env;
+    struct FunctionalOscillator_SoftPhaseAccumulator osc;
+    float current_sample;
+    enum KickState state;
+    float global_pitch;
+    float retrigger_slope;
+    float retrigger_fade_out_amp;
+    float overdrive;
+    float od_param;
+} SynthKick;
+
 float f32_millis_to_samples(float val, float sr);
 
 float f32_samples_to_millis(float val, float sr);
@@ -179,5 +238,35 @@ void simple_delay_set_mix(struct SimpleDelay *ptr, float mix);
  Returns next sample
  */
 float simple_delay_tick(struct SimpleDelay *ptr, float sample);
+
+/*
+ Initializes `SynthKick` struct
+ */
+struct SynthKick synth_kick_init(float sr);
+
+/*
+ Only accepts values between 0.0 and 1.0, otherwise clamps
+ */
+void synth_kick_set_attack(struct SynthKick *ptr, float val);
+
+/*
+ Only accepts values between 0.0 and 1.0, otherwise clamps
+ */
+void synth_kick_set_decay(struct SynthKick *ptr, float val);
+
+/*
+ Only accepts values between 0.0 and 1.0, otherwise clamps
+ */
+void synth_kick_set_pitch(struct SynthKick *ptr, float val);
+
+/*
+ Returns next sample
+ */
+float synth_kick_tick(struct SynthKick *ptr);
+
+/*
+ Triggers the kick
+ */
+void synth_kick_trigger(struct SynthKick *ptr);
 
 #endif  /* _YANEL_DSP_H_ */

@@ -1,3 +1,5 @@
+mod ffi;
+
 use embedded_audio_tools::{
     envelopes::{AudioRateADSR, EnvelopeState},
     float::lerp_unchecked,
@@ -30,12 +32,14 @@ const DEFAULT_PITCH: f32 = 40.0; // Hz
 const FADE_OUT: f32 = 0.035; // s
 
 #[derive(PartialEq)]
+#[repr(C)]
 enum KickState {
     Idle,
     Triggered,
     Retriggered,
 }
 
+#[repr(C)]
 pub struct SynthKick {
     // Audio Tools
     pitch_env: AudioRateADSR,
