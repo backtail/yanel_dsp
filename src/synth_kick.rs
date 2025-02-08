@@ -4,19 +4,29 @@ use embedded_audio_tools::{
     FunctionalOscillator, PhaseAccumulator, SoftPhaseAccumulator,
 };
 
-pub const SYNTH_KICK_LOWEST_DRIVE: f32 = 1.0;
+/// cbindgen:ignore
+const SYNTH_KICK_LOWEST_DRIVE: f32 = 1.0;
 
+/// cbindgen:ignore
 const SHORTEST_ATTACK: f32 = 0.0001; // s
+/// cbindgen:ignore
 const LONGEST_ATTACK: f32 = 0.030; // s
 
+/// cbindgen:ignore
 const SHORTEST_DECAY: f32 = 0.100; // s
+/// cbindgen:ignore
 const LONGEST_DECAY: f32 = 2.0; // s
 
+/// cbindgen:ignore
 const LOWEST_PITCH: f32 = 25.0; // Hz
+/// cbindgen:ignore
 const HIGHEST_PITCH: f32 = 125.0; // Hz
+/// cbindgen:ignore
 const PITCH_RANGE: f32 = 200.0; // Hz
+/// cbindgen:ignore
 const DEFAULT_PITCH: f32 = 40.0; // Hz
 
+/// cbindgen:ignore
 const FADE_OUT: f32 = 0.035; // s
 
 #[derive(PartialEq)]
