@@ -68,7 +68,7 @@ impl SynthKick {
             current_sample: 0.0,
             state: KickState::Idle,
             global_pitch: DEFAULT_PITCH,
-            retrigger_slope: 0.0,
+            retrigger_slope: 1.0 / (FADE_OUT * sr),
             retrigger_fade_out_amp: 1.0,
 
             overdrive: SYNTH_KICK_LOWEST_DRIVE,
@@ -118,7 +118,9 @@ impl SynthKick {
             }
 
             KickState::Retriggered => {
-                if self.current_sample.abs() >= 0.0001 {
+                if (self.current_sample.is_sign_positive() && self.current_sample >= 0.0001)
+                    || (self.current_sample.is_sign_negative() && self.current_sample <= -0.0001)
+                {
                     self.retrigger_fade_out_amp -= self.retrigger_slope;
                     self.current_sample *= self.retrigger_fade_out_amp;
                 } else {
