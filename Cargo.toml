@@ -10,8 +10,8 @@ crate-type = ["lib", "staticlib"]
 [dependencies]
 # embedded-audio-tools = { git = "https://github.com/backtail/embedded-audio-tools.git" }
 
-# for dev
-embedded-audio-tools = { path = "../embedded-audio-tools" }
+embedded-audio-tools = { path = "../embedded-audio-tools" } # for dev
 
 [features]
-static = []
+# static lib requires no_std envirnoment
+static = ["embedded-audio-tools/no_std"]
