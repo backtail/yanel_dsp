@@ -4,11 +4,13 @@ use embedded_audio_tools as tools;
 
 mod ffi;
 
+mod compressor;
 mod freeverb;
 mod multi_filter;
 mod simple_delay;
 mod synth_kick;
 
+pub use crate::compressor::Compressor;
 pub use crate::freeverb::Freeverb;
 pub use crate::multi_filter::MultiFilter;
 pub use crate::simple_delay::SimpleDelay;

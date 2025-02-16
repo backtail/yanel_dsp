@@ -17,14 +17,6 @@ typedef enum ButterworthType {
     ButterworthType_LowShelf = 5,
 } ButterworthType;
 
-typedef enum EnvelopeState {
-    EnvelopeState_Idle,
-    EnvelopeState_Attack,
-    EnvelopeState_Decay,
-    EnvelopeState_Release,
-    EnvelopeState_Sustain,
-} EnvelopeState;
-
 typedef enum KickState {
     KickState_Idle,
     KickState_Triggered,
@@ -37,6 +29,57 @@ typedef enum Waveform {
     Waveform_Sawtooth = 2,
     Waveform_Triangle = 3,
 } Waveform;
+
+typedef struct MultiStageEnvelope_3 {
+    /*
+     stage time in samples
+     */
+    float stage_time[3];
+    /*
+     always between -10.0 and 10.0
+     */
+    float stage_slope[3];
+    /*
+     always between 0.0 and 1.0
+     */
+    float stage_level[3];
+    /*
+     always between 0.0 and 1.0
+     */
+    float stage_begin_level;
+    float t;
+    float envelope_value;
+    int8_t current_stage;
+    uint8_t retrigger_stage;
+} MultiStageEnvelope_3;
+
+/*
+ Feed Forward Compressor with adjustable time slope parameters
+ */
+typedef struct FFCompressor {
+    /*
+     between 0.0 and 1.0
+     */
+    float threshold;
+    /*
+     between 1.0 and +inf
+     */
+    float ratio;
+    /*
+     between 1.0 and upper bound
+     */
+    float makeup_gain;
+    struct MultiStageEnvelope_3 env;
+    /*
+     internal
+     */
+    bool env_triggered;
+} FFCompressor;
+
+typedef struct Compressor {
+    struct FFCompressor comp;
+    float sr;
+} Compressor;
 
 /*
  Raw mutable pointer that implements the `Send` trait since it's only acting on stack memory
@@ -127,19 +170,6 @@ typedef struct SimpleDelay {
     size_t crossfade_samples;
 } SimpleDelay;
 
-typedef struct AudioRateADSR {
-    float attack;
-    float decay;
-    float sustain;
-    float release;
-    float slope;
-    float t;
-    enum EnvelopeState state;
-    float envelope_value;
-    float release_val;
-    float sr;
-} AudioRateADSR;
-
 typedef struct SoftPhaseAccumulator {
     uint32_t counter;
     float freq;
@@ -153,17 +183,41 @@ typedef struct FunctionalOscillator_SoftPhaseAccumulator {
 } FunctionalOscillator_SoftPhaseAccumulator;
 
 typedef struct SynthKick {
-    struct AudioRateADSR pitch_env;
-    struct AudioRateADSR volume_env;
+    struct MultiStageEnvelope_3 pitch_env;
+    struct MultiStageEnvelope_3 volume_env;
     struct FunctionalOscillator_SoftPhaseAccumulator osc;
+    float sr;
     float current_sample;
     enum KickState state;
     float global_pitch;
+    float global_pitch_range;
     float retrigger_slope;
     float retrigger_fade_out_amp;
     float overdrive;
     float od_param;
 } SynthKick;
+
+/*
+ Initializes `Compressor` struct
+ */
+struct Compressor compressor_init(float sr);
+
+void compressor_set_attack(struct Compressor *ptr, float val);
+
+void compressor_set_attack_slope(struct Compressor *ptr, float val);
+
+void compressor_set_ratio(struct Compressor *ptr, float val);
+
+void compressor_set_release(struct Compressor *ptr, float val);
+
+void compressor_set_release_slope(struct Compressor *ptr, float val);
+
+void compressor_set_threshold(struct Compressor *ptr, float val);
+
+/*
+ Returns next sample
+ */
+float compressor_tick(struct Compressor *ptr, float sample);
 
 float f32_millis_to_samples(float val, float sr);
 
@@ -253,6 +307,16 @@ void synth_kick_set_attack(struct SynthKick *ptr, float val);
  Only accepts values between 0.0 and 1.0, otherwise clamps
  */
 void synth_kick_set_decay(struct SynthKick *ptr, float val);
+
+/*
+ Only accepts values between 0.0 and 1.0, otherwise clamps
+ */
+void synth_kick_set_decay_pitch(struct SynthKick *ptr, float val);
+
+/*
+ Only accepts values between -1.0 and 1.0, otherwise clamps
+ */
+void synth_kick_set_env_slope(struct SynthKick *ptr, float val);
 
 /*
  Only accepts values between 0.0 and 1.0, otherwise clamps
