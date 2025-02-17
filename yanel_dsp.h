@@ -8,6 +8,12 @@
 #include <stddef.h>
 
 
+typedef enum ARPhase {
+    ARPhase_HOLD = -1,
+    ARPhase_ATTACK = 0,
+    ARPhase_RELEASE = 1,
+} ARPhase;
+
 typedef enum ButterworthType {
     ButterworthType_Lowpass = 0,
     ButterworthType_Highpass = 1,
@@ -30,28 +36,27 @@ typedef enum Waveform {
     Waveform_Triangle = 3,
 } Waveform;
 
-typedef struct MultiStageEnvelope_3 {
+typedef struct AttackRelease {
     /*
      stage time in samples
      */
-    float stage_time[3];
+    float stage_time[2];
     /*
      always between -10.0 and 10.0
      */
-    float stage_slope[3];
+    float stage_slope[2];
     /*
      always between 0.0 and 1.0
      */
-    float stage_level[3];
+    float stage_level[2];
     /*
      always between 0.0 and 1.0
      */
     float stage_begin_level;
     float t;
     float envelope_value;
-    int8_t current_stage;
-    uint8_t retrigger_stage;
-} MultiStageEnvelope_3;
+    enum ARPhase current_stage;
+} AttackRelease;
 
 /*
  Feed Forward Compressor with adjustable time slope parameters
@@ -69,11 +74,12 @@ typedef struct FFCompressor {
      between 1.0 and upper bound
      */
     float makeup_gain;
-    struct MultiStageEnvelope_3 env;
+    struct AttackRelease env;
     /*
      internal
      */
     bool env_triggered;
+    float cv;
 } FFCompressor;
 
 typedef struct Compressor {
@@ -169,6 +175,29 @@ typedef struct SimpleDelay {
     size_t crossfade_counter;
     size_t crossfade_samples;
 } SimpleDelay;
+
+typedef struct MultiStageEnvelope_3 {
+    /*
+     stage time in samples
+     */
+    float stage_time[3];
+    /*
+     always between -10.0 and 10.0
+     */
+    float stage_slope[3];
+    /*
+     always between 0.0 and 1.0
+     */
+    float stage_level[3];
+    /*
+     always between 0.0 and 1.0
+     */
+    float stage_begin_level;
+    float t;
+    float envelope_value;
+    int8_t current_stage;
+    uint8_t retrigger_stage;
+} MultiStageEnvelope_3;
 
 typedef struct SoftPhaseAccumulator {
     uint32_t counter;
