@@ -1,8 +1,8 @@
 mod ffi;
 
 use embedded_audio_tools::{
-    envelope::MultiStageEnvelope, float::lerp_unchecked, FunctionalOscillator, PhaseAccumulator,
-    SoftPhaseAccumulator,
+    envelope::MultiStageEnvelope, float::lerp_unchecked, FFCompressor, FunctionalOscillator,
+    PhaseAccumulator, SoftPhaseAccumulator,
 };
 
 #[allow(unused_imports)]
@@ -12,7 +12,7 @@ use embedded_audio_tools::F32Ext;
 const SYNTH_KICK_LOWEST_DRIVE: f32 = 1.0;
 
 /// cbindgen:ignore
-const SHORTEST_ATTACK: f32 = 0.001; // s
+const SHORTEST_ATTACK: f32 = 0.0005; // s
 /// cbindgen:ignore
 const LONGEST_ATTACK: f32 = 0.030; // s
 
@@ -26,7 +26,7 @@ const LOWEST_PITCH: f32 = 25.0; // Hz
 /// cbindgen:ignore
 const HIGHEST_PITCH: f32 = 200.0; // Hz
 /// cbindgen:ignore
-const DEFAULT_PITCH: f32 = 40.0; // Hz
+const DEFAULT_PITCH: f32 = 55.0; // Hz
 /// cbindgen:ignore
 const DEFAULT_PITCH_RANGE: f32 = 1.5; // Hz
 
@@ -47,6 +47,7 @@ pub struct SynthKick {
     pitch_env: MultiStageEnvelope<3>,
     volume_env: MultiStageEnvelope<3>,
     osc: FunctionalOscillator<SoftPhaseAccumulator>,
+    comp: FFCompressor,
 
     // State
     sr: f32,
@@ -68,6 +69,7 @@ impl SynthKick {
             pitch_env: MultiStageEnvelope::new(1.0),
             volume_env: MultiStageEnvelope::new(0.0),
             osc: FunctionalOscillator::new(SoftPhaseAccumulator::new(DEFAULT_PITCH, sr)),
+            comp: FFCompressor::new(1.0, 10.0, 1.0),
 
             sr,
             current_sample: 0.0,
@@ -81,11 +83,16 @@ impl SynthKick {
             od_param: 1.0,
         };
 
-        kick.pitch_env.set_all(0, 0.020, 0.8, 0.0, sr);
+        kick.pitch_env.set_all(0, 0.040, 0.8, 0.0, sr);
         kick.pitch_env.set_all(1, 2.0, 0.0, 5.0, sr);
 
-        kick.volume_env.set_all(0, 0.05, 1.0, 0.0, sr);
+        kick.volume_env.set_all(0, 0.005, 1.0, 0.0, sr);
         kick.volume_env.set_all(1, 0.3, 0.0, 10.0, sr);
+
+        kick.comp.set_attack(0.0001, sr);
+        kick.comp.set_release(0.002, sr);
+        kick.comp.set_attack_slope(-5.0);
+        kick.comp.set_release_slope(4.0);
 
         kick
     }
@@ -123,10 +130,9 @@ impl SynthKick {
                     self.state = KickState::Idle;
                 }
 
-                // apply pitch envelope
+                // // apply pitch envelope
                 self.osc.set_freq_unchecked(
-                    self.global_pitch
-                        + self.global_pitch * self.global_pitch_range.exp() * self.pitch_env.tick(),
+                    self.global_pitch + self.global_pitch * 4.0 * self.pitch_env.tick(),
                 );
 
                 // apply volume curve
@@ -147,7 +153,8 @@ impl SynthKick {
             }
         }
 
-        return self.current_sample;
+        // return self.current_sample;
+        self.comp.tick(self.current_sample)
     }
 
     pub fn update_sr(&mut self, sr: f32) {

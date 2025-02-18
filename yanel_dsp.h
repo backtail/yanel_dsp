@@ -215,6 +215,7 @@ typedef struct SynthKick {
     struct MultiStageEnvelope_3 pitch_env;
     struct MultiStageEnvelope_3 volume_env;
     struct FunctionalOscillator_SoftPhaseAccumulator osc;
+    struct FFCompressor comp;
     float sr;
     float current_sample;
     enum KickState state;
