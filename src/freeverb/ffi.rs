@@ -26,3 +26,9 @@ unsafe extern "C" fn freeverb_set_all_params(ptr: *mut Freeverb, params: *mut Fr
         .unwrap_unchecked()
         .set_all(params.as_ref().unwrap_unchecked());
 }
+
+/// Sample rate depending calculations should be performed earlier!
+#[no_mangle]
+unsafe extern "C" fn freeverb_set_frozen(ptr: *mut Freeverb, state: bool) {
+    ptr.as_mut().unwrap_unchecked().set_frozen(state);
+}

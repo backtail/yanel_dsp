@@ -3,6 +3,8 @@ mod ffi;
 ///////////////
 // TODO: Calculate required buffer allocations for common sample rates!
 ///////////////
+use crate::tools::filter::{Biquad, BiquadCoeffs, Butterworth};
+use crate::tools::float::F32Tools;
 use crate::tools::memory_access::{from_slice_mut, null_mut};
 use crate::tools::{AllPass, Comb};
 
@@ -24,6 +26,18 @@ const SCALE_ROOM: f32 = 0.28;
 /// cbindgen:ignore
 const OFFSET_ROOM: f32 = 0.7;
 
+/// cbindgen:ignore
+const HIGHPASS_MIN_FREQ: f32 = 10.0;
+
+/// cbindgen:ignore
+const HIGHPASS_MAX_FREQ: f32 = 3000.0;
+
+/// cbindgen:ignore
+const LOWPASS_MIN_FREQ: f32 = 3000.0;
+
+/// cbindgen:ignore
+const LOWPASS_MAX_FREQ: f32 = 22000.0;
+
 #[repr(C)]
 pub struct FreeverbParams {
     width: f32,
@@ -31,6 +45,8 @@ pub struct FreeverbParams {
     room_size: f32,
     frozen: bool,
     mix: f32,
+    highpass_freq: f32,
+    lowpass_freq: f32,
 }
 
 #[repr(C)]
@@ -39,6 +55,8 @@ pub struct Freeverb {
     combs_r: [Comb; 8],
     allpasses_l: [AllPass; 4],
     allpasses_r: [AllPass; 4],
+    filter_l: Biquad<Butterworth>,
+    filter_r: Biquad<Butterworth>,
 
     params: FreeverbParams,
 
@@ -47,6 +65,8 @@ pub struct Freeverb {
     input_gain: f32,
     dry: f32,
     wet: f32,
+
+    sr: f32,
 }
 
 impl Freeverb {
@@ -97,17 +117,22 @@ impl Freeverb {
             combs_r: [Comb::new(null_mut()); 8],
             allpasses_l: [AllPass::new(null_mut()); 4],
             allpasses_r: [AllPass::new(null_mut()); 4],
+            filter_l: Biquad::new(BiquadCoeffs::<Butterworth>::new()),
+            filter_r: Biquad::new(BiquadCoeffs::<Butterworth>::new()),
             wet_gain_l: 0.0,
             wet_gain_r: 0.0,
             input_gain: 0.0,
             wet: 0.0,
             dry: 0.0,
+            sr: sr as f32,
             params: FreeverbParams {
                 width: 0.0,
                 dampening: 0.0,
                 room_size: 0.0,
                 frozen: false,
                 mix: 0.0,
+                highpass_freq: 0.0,
+                lowpass_freq: 1.0,
             },
         };
 
@@ -118,6 +143,8 @@ impl Freeverb {
         freeverb.set_dampening(0.5);
         freeverb.set_room_size(0.5);
         freeverb.set_frozen(false);
+        freeverb.set_highpass(0.0);
+        freeverb.set_lowpass(1.0);
 
         freeverb
     }
@@ -127,9 +154,12 @@ impl Freeverb {
 
         let mut out = (0.0, 0.0);
 
+        out.0 = self.filter_l.process(input_mixed);
+        out.1 = self.filter_r.process(input_mixed);
+
         for combs in core::iter::zip(self.combs_l.iter_mut(), self.combs_r.iter_mut()) {
-            out.0 += combs.0.tick(input_mixed);
-            out.1 += combs.1.tick(input_mixed);
+            out.0 += combs.0.tick(out.0);
+            out.1 += combs.1.tick(out.1);
         }
 
         for allpasses in core::iter::zip(self.allpasses_l.iter_mut(), self.allpasses_r.iter_mut()) {
@@ -173,11 +203,6 @@ impl Freeverb {
         self.update_combs();
     }
 
-    pub fn set_freeze(&mut self, frozen: bool) {
-        self.params.frozen = frozen;
-        self.update_combs();
-    }
-
     pub fn set_wet(&mut self, value: f32) {
         self.wet = value * SCALE_WET;
         self.update_wet_gains();
@@ -186,6 +211,40 @@ impl Freeverb {
     pub fn set_width(&mut self, value: f32) {
         self.params.width = value;
         self.update_wet_gains();
+    }
+
+    pub fn set_highpass(&mut self, value: f32) {
+        self.filter_l.coeffs.highpass(
+            value
+                .clamp(0.0, 1.0)
+                .map(HIGHPASS_MIN_FREQ, HIGHPASS_MAX_FREQ),
+            0.7,
+            self.sr,
+        );
+        self.filter_r.coeffs.highpass(
+            value
+                .clamp(0.0, 1.0)
+                .map(HIGHPASS_MIN_FREQ, HIGHPASS_MAX_FREQ),
+            0.7,
+            self.sr,
+        );
+    }
+
+    pub fn set_lowpass(&mut self, value: f32) {
+        self.filter_l.coeffs.lowpass(
+            value
+                .clamp(0.0, 1.0)
+                .map(LOWPASS_MIN_FREQ, LOWPASS_MAX_FREQ),
+            0.7,
+            self.sr,
+        );
+        self.filter_r.coeffs.lowpass(
+            value
+                .clamp(0.0, 1.0)
+                .map(LOWPASS_MIN_FREQ, LOWPASS_MAX_FREQ),
+            0.7,
+            self.sr,
+        );
     }
 
     fn update_wet_gains(&mut self) {
@@ -225,15 +284,18 @@ impl Freeverb {
     }
 
     pub fn set_all(&mut self, new: &FreeverbParams) {
-        self.params.dampening = new.dampening * SCALE_DAMPENING;
-        self.params.room_size = new.room_size * SCALE_ROOM + OFFSET_ROOM;
-        self.params.width = new.width;
+        self.params.dampening = new.dampening.clamp(0.0, 1.0) * SCALE_DAMPENING;
+        self.params.room_size = new.room_size.clamp(0.0, 1.0) * SCALE_ROOM + OFFSET_ROOM;
+        self.params.width = new.width.clamp(0.0, 1.0);
         self.params.frozen = new.frozen;
-        self.params.mix = new.mix;
+        self.params.mix = new.mix.clamp(0.0, 1.0);
 
         self.input_gain = if new.frozen { 0.0 } else { 1.0 };
         self.dry = 1.0 - new.mix;
         self.wet = new.mix * SCALE_WET;
+
+        self.set_lowpass(new.lowpass_freq);
+        self.set_highpass(new.highpass_freq);
 
         self.update_combs();
         self.update_wet_gains();
@@ -250,7 +312,7 @@ mod tests {
     fn ticking_does_something() {
         let mut buffer = [0_f32; 48000];
         let mut freeverb = super::Freeverb::new(48000, buffer.as_mut_slice());
-        assert_eq!(freeverb.tick((1.0, 1.0)), (0.0, 0.0));
+        assert_ne!(freeverb.tick((1.0, 1.0)), (0.0, 0.0));
         for _ in 0..(1640 * 4) {
             freeverb.tick((0.0, 0.0));
         }

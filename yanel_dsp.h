@@ -78,7 +78,6 @@ typedef struct FFCompressor {
     /*
      internal
      */
-    bool env_triggered;
     float cv;
 } FFCompressor;
 
@@ -117,27 +116,6 @@ typedef struct AllPass {
     struct DelayLine delay_line;
 } AllPass;
 
-typedef struct FreeverbParams {
-    float width;
-    float dampening;
-    float room_size;
-    bool frozen;
-    float mix;
-} FreeverbParams;
-
-typedef struct Freeverb {
-    struct Comb combs_l[8];
-    struct Comb combs_r[8];
-    struct AllPass allpasses_l[4];
-    struct AllPass allpasses_r[4];
-    struct FreeverbParams params;
-    float wet_gain_l;
-    float wet_gain_r;
-    float input_gain;
-    float dry;
-    float wet;
-} Freeverb;
-
 typedef struct BiquadCoeffs_Butterworth {
     float b0;
     float b1;
@@ -154,6 +132,32 @@ typedef struct Biquad_Butterworth {
     float z2;
     struct BiquadCoeffs_Butterworth coeffs;
 } Biquad_Butterworth;
+
+typedef struct FreeverbParams {
+    float width;
+    float dampening;
+    float room_size;
+    bool frozen;
+    float mix;
+    float highpass_freq;
+    float lowpass_freq;
+} FreeverbParams;
+
+typedef struct Freeverb {
+    struct Comb combs_l[8];
+    struct Comb combs_r[8];
+    struct AllPass allpasses_l[4];
+    struct AllPass allpasses_r[4];
+    struct Biquad_Butterworth filter_l;
+    struct Biquad_Butterworth filter_r;
+    struct FreeverbParams params;
+    float wet_gain_l;
+    float wet_gain_r;
+    float input_gain;
+    float dry;
+    float wet;
+    float sr;
+} Freeverb;
 
 typedef struct MultiFilter {
     struct Biquad_Butterworth biquad;
@@ -268,6 +272,11 @@ struct Freeverb freeverb_init(float sr,
  Sample rate depending calculations should be performed earlier!
  */
 void freeverb_set_all_params(struct Freeverb *ptr, struct FreeverbParams *params);
+
+/*
+ Sample rate depending calculations should be performed earlier!
+ */
+void freeverb_set_frozen(struct Freeverb *ptr, bool state);
 
 /*
  Returns next stereo samples. Raw pointer `stereo_samples` assumes to have exactly two elements!
